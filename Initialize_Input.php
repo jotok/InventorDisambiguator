@@ -9,7 +9,7 @@
 	{
 		$linex=explode("\t",$line);
 		if(strcmp($linex[2],"1"))
-			fprintf($outf,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			fprintf($outf,"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
 				$linex[0],
 				$linex[3],
 				$linex[4],

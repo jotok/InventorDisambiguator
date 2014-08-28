@@ -152,7 +152,7 @@ end
 
 fprintf('\n\n');
 
-	fid0=fopen('_disambiguator_output.tsv','W');
+	fid0=fopen('_disambiguator_output.tsv','w');
 	for i=1:length(inventor_id_new)
 		fprintf(fid0,'%s\t%s\n',key{i},inventor_id_new{i});
 	end

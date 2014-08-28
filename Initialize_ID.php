@@ -62,8 +62,10 @@
 		$name=$line[1]." ".$line[2]." ".$line[3];
 		$name=preg_replace("/[\t\r\n]/"," ",$name);
 		$name=preg_replace("/[\ ]+/","_",$name);
+		$assignee=$line[11];
+		$assignee=preg_replace("[\t\r\n]/"," ",$assignee);
 
-		$out2=sprintf("%s\t0\t%s\t%s\t%s\t%s\t%s",$line[4],$name,$line[11],$line[5],$line[3],$inventor_id[$n]);
+		$out2=sprintf("%s\t0\t%s\t%s\t%s\t%s\t%s",$line[4],$name,$assignee,$line[5],$line[3],$inventor_id[$n]);
 		$out2=trim($out2);
 		$out2=strtoupper($out2);
 		fprintf($outf2,"%s\n",$out2);

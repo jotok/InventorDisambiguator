@@ -1,5 +1,8 @@
 <?php
 
+// Removed all code that was trying to use multiple threads since the PCTNL library
+// is not available for Windows
+
 function scan_dir_file($path)
 {
 	$dirr=scandir($path);
@@ -7,7 +10,7 @@ function scan_dir_file($path)
 	unset($dirr[1]);
 	$dirr=array_merge($dirr);
 	for($i=0;$i<sizeof($dirr);$i++)
-		$dirr[$i]=$path."/".$dirr[$i];
+		$dirr[$i]=$path."\\".$dirr[$i];
 	return $dirr;
 }
 
@@ -48,65 +51,64 @@ function combine_threaded_newsdict_multi_thread($path,$outfn)
 	$layer=-1;
 	$total=0;
 
-while(sizeof($dirr)+sizeof($pid_arr)>1)
-{
-	$layer++;
-
-	while(sizeof($dirr)>1)
+	while(sizeof($dirr)+sizeof($pid_arr)>1)
 	{
-	
-	$file1=$dirr[0];
-	$file2=$dirr[1];
-	$words1=file_get_contents($dirr[0]);
-	$words2=file_get_contents($dirr[1]);
-	shell_exec("rm -Rf ".$dirr[0]);
-	shell_exec("rm -Rf ".$dirr[1]);
-	unset($dirr[0]);
-	unset($dirr[1]);
-	$dirr=array_merge($dirr);
+		$layer++;
 
-		$pid=pcntl_fork();
-		if ($pid==-1)
-			die('could not fork');
-		else
+		while(sizeof($dirr)>1)
 		{
-			if ($pid)
-			{
-				$pid_arr[]=$pid;
-			}
+		
+			$file1=$dirr[0];
+			$file2=$dirr[1];
+			$words1=file_get_contents($dirr[0]);
+			$words2=file_get_contents($dirr[1]);
+			shell_exec("del /q ".$dirr[0]);
+			shell_exec("del /q ".$dirr[1]);
+			unset($dirr[0]);
+			unset($dirr[1]);
+			$dirr=array_merge($dirr);
+
+/*			$pid=pcntl_fork();
+			if ($pid==-1)
+				die('could not fork');
 			else
 			{
-				combine_newsdict($file1,$words1,$words2);
-				exit(0);
-			}
+				if ($pid)
+				{
+					$pid_arr[]=$pid;
+				}
+				else
+				{
+					combine_newsdict($file1,$words1,$words2);
+					exit(0);
+				}
+			} */
+			combine_newsdict($file1,$words1,$words2);
 		}
-	}
-
-	while(count($pid_arr) > 0)
-	{
-		$myId = pcntl_waitpid(-1, $status, WNOHANG);
-		foreach($pid_arr as $key => $pid)
+/*		while(count($pid_arr) > 0)
 		{
-			if($myId==$pid)
+			$myId = pcntl_waitpid(-1, $status, WNOHANG);
+			foreach($pid_arr as $key => $pid)
 			{
-				unset($pid_arr[$key]);
-				$dirr=scan_dir_file($path);
-				break;
+				if($myId==$pid)
+				{
+					unset($pid_arr[$key]);
+					$dirr=scan_dir_file($path);
+					break;
+				}
 			}
-		}
-		usleep(100);
+			usleep(100);
+		} */
 	}
 
-}
-
-	while(count($pid_arr) > 0)
+/*	while(count($pid_arr) > 0)
 	{
 		$myId = pcntl_waitpid(-1, $status, WNOHANG);
 		foreach($pid_arr as $key => $pid)
 			if($myId==$pid)
 				unset($pid_arr[$key]);
 		usleep(100);
-	}
+	} */
 
 	$dict=file_get_contents($dirr[0]);
 	$dict=substr($dict,0,strlen($dict)-1);
@@ -131,7 +133,7 @@ function combine_threaded_newspara($path,$b,$outfn)
 	$outf=fopen($outfn,"w");
 	for ($i=0;$i<$b;$i++)
 	{
-		$inf=fopen($path."/".$i,"r");
+		$inf=fopen($path."\\".$i,"r");
 		for (;($content=fgets($inf))!=false;)
 			fprintf($outf,"%s",$content);
 		fclose($inf);
@@ -145,7 +147,7 @@ function generate_newspara_multi_thread($path,$bi,$infn,$start,$end,$dict)
 {
 
 	$inf=fopen($infn,"r");
-	$outf=fopen($path."/".$bi,"w");
+	$outf=fopen($path."\\".$bi,"w");
 
 	for ($n=0;($content=fgets($inf))!=false;$n++)
 	{
@@ -170,37 +172,37 @@ function generate_newspara_multi_thread($path,$bi,$infn,$start,$end,$dict)
 function generate_newsdict_multi_thread($path,$bi,$infn,$start,$end)
 {
 	$inf=fopen($infn,"r");
-	$outf=fopen($path."/".$bi,"w");
+	$outf=fopen($path."\\".$bi,"w");
 
 	$method="load_2";
 
 	$dict=Array();
 
-if(!strcmp($method,"load_1"))
-{
-	for ($n=0;($content=fgets($inf))!=false;$n++)
+	if(!strcmp($method,"load_1"))
 	{
-		if ($n<$start or $n>$end)
-			continue;
-		$content=str_replace("\n","",$content);
-		$content=explode(" ",$content);
-		$dict=array_unique(array_merge($dict,$content));
+		for ($n=0;($content=fgets($inf))!=false;$n++)
+		{
+			if ($n<$start or $n>$end)
+				continue;
+			$content=str_replace("\n","",$content);
+			$content=explode(" ",$content);
+			$dict=array_unique(array_merge($dict,$content));
+		}
 	}
-}
-if(!strcmp($method,"load_2"))
-{
-	$temp="";
-	for ($n=0;($content=fgets($inf))!=false;$n++)
+	if(!strcmp($method,"load_2"))
 	{
-		if ($n<$start or $n>$end)
-			continue;
-		$content=str_replace("\n","",$content);
-		$temp.=$content." ";
+		$temp="";
+		for ($n=0;($content=fgets($inf))!=false;$n++)
+		{
+			if ($n<$start or $n>$end)
+				continue;
+			$content=str_replace("\n","",$content);
+			$temp.=$content." ";
+		}
+		$temp=substr($temp,0,strlen($temp)-1);
+		$temp=explode(" ",$temp);
+		$dict=array_unique(array_merge($temp));
 	}
-	$temp=substr($temp,0,strlen($temp)-1);
-	$temp=explode(" ",$temp);
-	$dict=array_unique(array_merge($temp));
-}
 
 	fclose($inf);
 
@@ -236,8 +238,8 @@ function generate_newsdict($infn,$outfn,$b)
 		$intervals[$i]["end"]=$block_end;
 	}
 
-	$path="/tmp/php".getmypid();
-	shell_exec("mkdir ".$path);
+	$path=".\\tmp\\php".getmypid();
+	shell_exec("md ".$path);
 
 	$starttime=microtime(TRUE);
 	$elapsed = microtime(TRUE) - $starttime;
@@ -245,7 +247,7 @@ function generate_newsdict($infn,$outfn,$b)
 	$pid_arr=Array();
 	for ($i=0;$i<$b;$i++)
 	{
-		$pid=pcntl_fork();
+/*		$pid=pcntl_fork();
 		if ($pid==-1)
 			die('could not fork');
 		else
@@ -257,10 +259,11 @@ function generate_newsdict($infn,$outfn,$b)
 				generate_newsdict_multi_thread($path,$i,$infn,$intervals[$i]["start"],$intervals[$i]["end"]);
 				exit(0);
 			}
-		}
+		} */
+		generate_newsdict_multi_thread($path,$i,$infn,$intervals[$i]["start"],$intervals[$i]["end"]);
 	}
 
-	while(count($pid_arr) > 0)
+/*	while(count($pid_arr) > 0)
 	{
 		$myId = pcntl_waitpid(-1, $status, WNOHANG);
 		foreach($pid_arr as $key => $pid)
@@ -269,11 +272,11 @@ function generate_newsdict($infn,$outfn,$b)
 				unset($pid_arr[$key]);
 		}
 		usleep(100);
-	}
+	} */
 
 	$dict=combine_threaded_newsdict_multi_thread($path,$outfn);
 
-	shell_exec("rm -Rf ".$path);
+	shell_exec("rmdir /s /q ".$path);
 
 	return $dict;
 }
@@ -300,8 +303,8 @@ function generate_newspara($infn,$outfn,$dict,$b)
 		$intervals[$i]["end"]=$block_end;
 	}
 
-	$path="/tmp/php".getmypid();
-	shell_exec("mkdir ".$path);
+	$path=".\\tmp\\php".getmypid();
+	shell_exec("md ".$path);
 
 	$starttime=microtime(TRUE);
 	$elapsed = microtime(TRUE) - $starttime;
@@ -309,7 +312,7 @@ function generate_newspara($infn,$outfn,$dict,$b)
 	$pid_arr=Array();
 	for ($i=0;$i<$b;$i++)
 	{
-		$pid=pcntl_fork();
+/*		$pid=pcntl_fork();
 		if ($pid==-1)
 			die('could not fork');
 		else
@@ -321,7 +324,8 @@ function generate_newspara($infn,$outfn,$dict,$b)
 				generate_newspara_multi_thread($path,$i,$infn,$intervals[$i]["start"],$intervals[$i]["end"],$dict);
 				exit(0);
 			}
-		}
+		} */
+		generate_newspara_multi_thread($path,$i,$infn,$intervals[$i]["start"],$intervals[$i]["end"],$dict);
 	}
 
 	while(count($pid_arr) > 0)
@@ -337,7 +341,7 @@ function generate_newspara($infn,$outfn,$dict,$b)
 
 	combine_threaded_newspara($path,$b,$outfn);
 
-	shell_exec("rm -Rf ".$path);
+	shell_exec("rmdir /s /q ".$path);
 
 	return 0;
 }
@@ -347,8 +351,8 @@ function generate_newspara($infn,$outfn,$dict,$b)
 
 	$starttime=microtime(TRUE);
 
-	$number_of_threads_newsdict=12;
-	$number_of_threads_newspara=12;
+	$number_of_threads_newsdict=1;
+	$number_of_threads_newspara=1;
 
 	$dict=generate_newsdict("_attribute_line","_attribute_dictionary",$number_of_threads_newsdict);
 
