@@ -10,5 +10,3 @@ Break Down of run.sh
 `/usr/local/MATLAB/bin/matlab -nodesktop -nodisplay -nosplash -c /usr/local/MATLAB/bin/lic_standalone.dat -r "Load;Disambig;exit;";` : inventor name clustering and disambiguation
 
 system requirements - 50GB of RAM. 50GB of disk space. 12-core CPU.
-
-
