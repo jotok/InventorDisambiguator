@@ -1,14 +1,3 @@
 # USPTO Inventor Disambiguator
-To run:
-`sh run.sh < input_file`
-Upon completion: collect results from `_disambiguator_output.tsv`
 
-Break Down of run.sh
-`php Initialize_Input.php $1` : Filtering out inventors from granted patent publications (removal of redundant data points).
-`php Initialize_ID.php` : persistent IDs preparation
-`php Matrixify_Attributes.php` : form a matrix data structure to facilitate inventor name clustering
-`/usr/local/MATLAB/bin/matlab -nodesktop -nodisplay -nosplash -c /usr/local/MATLAB/bin/lic_standalone.dat -r "Load;Disambig;exit;";` : inventor name clustering and disambiguation
-
-system requirements - 50GB of RAM. 50GB of disk space. 12-core CPU.
-
-
+You can find setup instructions [here](https://github.com/CSSIP-AIR/InventorDisambiguator/wiki/Setup-Instructions).
