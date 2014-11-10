@@ -121,7 +121,7 @@ for index=1:length(patno)
 	%% if exists in patno_1 and in patno_2, then take out patno_1 (full match)
 		for ii=1:length(lump_index_1)
 			if ~any(strcmp(lump_patno_1{ii},lump_patno_2))
-				lump_index_1(end+1)=lump_index_1(ii);
+				lump_index_1_(end+1)=lump_index_1(ii);
 			end
 		end
 	%% if exists in patno_1 and in patno_2, then take out patno_1 (full match)
