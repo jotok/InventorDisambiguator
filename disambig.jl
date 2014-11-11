@@ -221,8 +221,6 @@ function main(directory=".")
         target = XXCLt[:, index]
         C_class = XXCL[:, find(target)]
 
-        # lump_index_2 = find(step .* (C_name .* (C_assignee + C_city + C_class)))
-        # lump_index_1 = find(step .* (C_firstname .* C_lastname .* C_assignee .* C_city .* C_class))
         lump_index_2 = make_lump_index_2(step, C_name, C_assignee, C_city, C_class)
         lump_index_1 = make_lump_index_1(step, C_firstname, C_lastname, C_assignee, C_city, C_class)
         lump_patno_2 = patno[lump_index_2]
@@ -262,8 +260,6 @@ function main(directory=".")
             target = XXCLt[:, indexy]
             C_class = XXCL[:, find(target)]
 
-            # lump_index_2 = find(step .* (C_name .* (C_assignee + C_city + C_class)))
-            # lump_index_1 = find(step .* (C_firstname .* C_lastname .* C_assignee .* C_city .* C_class))
             lump_index_2 = make_lump_index_2(step, C_name, C_assignee, C_city, C_class)
             lump_index_1 = make_lump_index_1(step, C_firstname, C_lastname, C_assignee, C_city, C_class)
             lump_patno_2 = patno[lump_index_2]
