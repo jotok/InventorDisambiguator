@@ -2,6 +2,148 @@ module Disambig
 
 include("load.jl")
 
+typealias SparseMatrix SparseMatrixCSC{Int, Int}
+
+function make_lump_index_1(step, C_firstname, C_lastname, C_assignee, C_city, C_class)
+
+    nnzS = max(nnz(step), nnz(C_firstname), nnz(C_lastname), nnz(C_assignee), nnz(C_city), nnz(C_class))
+    rowvalS = Array(Int, nnzS)
+    ptrS = 1
+
+    step_rowval = step.rowval
+    fn_rowval = C_firstname.rowval
+    ln_rowval = C_lastname.rowval
+    as_rowval = C_assignee.rowval
+    ct_rowval = C_city.rowval
+    cl_rowval = C_class.rowval
+
+    if isempty(fn_rowval) || isempty(ln_rowval) || isempty(as_rowval) || isempty(ct_rowval) || isempty(cl_rowval) || isempty(step_rowval)
+        return Array(Int, 0)
+    end
+
+    step_i = fn_i = ln_i = as_i = ct_i = cl_i = 1
+    r = max(fn_rowval[1], ln_rowval[1], as_rowval[1], ct_rowval[1], cl_rowval[1])
+
+    while fn_i <= endof(fn_rowval) && ln_i <= endof(ln_rowval) && as_i <= endof(as_rowval) && ct_i <= endof(ct_rowval) && cl_i <= endof(cl_rowval) && step_i <= endof(step_rowval)
+
+        fn_r = fn_rowval[fn_i]
+        while fn_r < r && fn_i < endof(fn_rowval)
+            fn_i += 1
+            fn_r = fn_rowval[fn_i]
+        end
+
+        ln_r = ln_rowval[ln_i]
+        while ln_r < r && ln_i < endof(ln_rowval)
+            ln_i += 1
+            ln_r = ln_rowval[ln_i]
+        end
+
+        as_r = as_rowval[as_i]
+        if as_r < r && as_i < endof(as_rowval)
+            as_i += 1
+            as_r = as_rowval[as_i]
+        end
+
+        ct_r = ct_rowval[ct_i]
+        if ct_r < r && ct_i < endof(ct_rowval)
+            ct_i += 1
+            ct_r = ct_rowval[ct_i]
+            continue
+        end
+
+        cl_r = cl_rowval[cl_i]
+        if cl_r < r && cl_i < endof(cl_rowval)
+            cl_i += 1
+            cl_r = cl_rowval[cl_i]
+            continue
+        end
+
+        step_r = step_rowval[step_i]
+        if step_r < r && step_r < endof(step_rowval)
+            step_i += 1
+            step_r = step_rowval[step_i]
+            continue
+        end
+
+        if fn_r == ln_r == as_r == ct_r == cl_r == step_r
+            rowvalS[ptrS] = fn_r
+            ptrS += 1
+        end
+
+        fn_i += 1
+        ln_i += 1
+        as_i += 1
+        ct_i += 1
+        cl_i += 1
+        step_i += 1
+    end
+
+    deleteat!(rowvalS, ptrS:length(rowvalS))
+    return rowvalS
+end
+
+function make_lump_index_2(step, C_name::SparseMatrix, C_assignee::SparseMatrix, C_city::SparseMatrix, C_class::SparseMatrix)
+
+    nnzS = nnz(step) + nnz(C_name)
+    rowvalS = Array(Int, nnzS)
+    ptrS = 1
+
+    step_rowval = step.rowval
+    nm_rowval = C_name.rowval
+    as_rowval = C_assignee.rowval
+    ct_rowval = C_city.rowval
+    cl_rowval = C_class.rowval
+
+    if isempty(nm_rowval) || isempty(step_rowval)
+        return Array(Int, 0)
+    end
+
+    step_i = nm_i = as_i = ct_i = cl_i = 1
+    while step_i <= endof(step_rowval) && nm_i <= endof(nm_rowval)
+        step_r = step_rowval[step_i]
+        nm_r = nm_rowval[nm_i]
+
+        if step_r < nm_r
+            step_i += 1
+            continue
+        end
+
+        if step_r > nm_r
+            nm_i += 1
+            continue
+        end
+
+        # step_r == nm_r
+
+        while as_i <= endof(as_rowval) && as_rowval[as_i] < step_r
+            as_i += 1
+        end
+
+        while ct_i <= endof(ct_rowval) && ct_rowval[ct_i] < step_r
+            ct_i += 1
+        end
+
+        while cl_i <= endof(cl_rowval) && cl_rowval[cl_i] < step_r
+            cl_i += 1
+        end
+
+        if as_i > endof(as_rowval) || ct_i > endof(ct_rowval) || cl_i > endof(cl_rowval)
+            break
+        end
+
+        if as_rowval[as_i] == step_r || ct_rowval[ct_i] == step_r || cl_rowval[cl_i] == step_r
+            rowvalS[ptrS] = step_r
+            ptrS += 1
+        end
+
+        step_i += 1
+        nm_i += 1
+    end
+
+    deleteat!(rowvalS, ptrS:length(rowvalS))
+    return rowvalS
+end
+
 function main(directory=".")
     X = load_attribute_matrix(directory)
     attribute_metric = load_attribute_metric(directory)
@@ -79,8 +221,10 @@ function main(directory=".")
         target = XXCLt[:, index]
         C_class = XXCL[:, find(target)]
 
-        lump_index_2 = find(step .* (C_name .* (C_assignee + C_city + C_class)))
-        lump_index_1 = find(step .* (C_firstname .* C_lastname .* C_assignee .* C_city .* C_class))
+        # lump_index_2 = find(step .* (C_name .* (C_assignee + C_city + C_class)))
+        # lump_index_1 = find(step .* (C_firstname .* C_lastname .* C_assignee .* C_city .* C_class))
+        lump_index_2 = make_lump_index_2(step, C_name, C_assignee, C_city, C_class)
+        lump_index_1 = make_lump_index_1(step, C_firstname, C_lastname, C_assignee, C_city, C_class)
         lump_patno_2 = patno[lump_index_2]
         lump_patno_1 = patno[lump_index_1]
         lump_index_1_ = Int[]
@@ -118,8 +262,10 @@ function main(directory=".")
             target = XXCLt[:, indexy]
             C_class = XXCL[:, find(target)]
 
-            lump_index_2 = find(step .* (C_name .* (C_assignee + C_city + C_class)))
-            lump_index_1 = find(step .* (C_firstname .* C_lastname .* C_assignee .* C_city .* C_class))
+            # lump_index_2 = find(step .* (C_name .* (C_assignee + C_city + C_class)))
+            # lump_index_1 = find(step .* (C_firstname .* C_lastname .* C_assignee .* C_city .* C_class))
+            lump_index_2 = make_lump_index_2(step, C_name, C_assignee, C_city, C_class)
+            lump_index_1 = make_lump_index_1(step, C_firstname, C_lastname, C_assignee, C_city, C_class)
             lump_patno_2 = patno[lump_index_2]
             lump_patno_1 = patno[lump_index_1]
             lump_index_1_ = Int[]
