@@ -48,21 +48,18 @@ function make_lump_index_1(step, C_firstname, C_lastname, C_assignee, C_city, C_
         if ct_r < r && ct_i < endof(ct_rowval)
             ct_i += 1
             ct_r = ct_rowval[ct_i]
-            continue
         end
 
         cl_r = cl_rowval[cl_i]
         if cl_r < r && cl_i < endof(cl_rowval)
             cl_i += 1
             cl_r = cl_rowval[cl_i]
-            continue
         end
 
         step_r = step_rowval[step_i]
         if step_r < r && step_r < endof(step_rowval)
             step_i += 1
             step_r = step_rowval[step_i]
-            continue
         end
 
         if fn_r == ln_r == as_r == ct_r == cl_r == step_r
@@ -76,6 +73,8 @@ function make_lump_index_1(step, C_firstname, C_lastname, C_assignee, C_city, C_
         ct_i += 1
         cl_i += 1
         step_i += 1
+
+        r = max(fn_rowval[fn_i], ln_rowval[ln_i], as_rowval[an_i], ct_rowval[ct_i], cl_rowval[cl_i])
     end
 
     deleteat!(rowvalS, ptrS:length(rowvalS))
