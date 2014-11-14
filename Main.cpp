@@ -377,8 +377,7 @@ int main(int argc, char* argv[]) {
 
     std::vector<int> lump_index_1;
     std::vector<int> lump_index_2;
-    std::vector<std::string> lump_patno_1;
-    std::vector<std::string> lump_patno_2;
+    std::set<std::string> lump_patno_2;
 
     std::set<int> lump;
     std::set<int> lump_initial;
@@ -391,7 +390,6 @@ int main(int argc, char* argv[]) {
 
         lump_index_1.clear();
         lump_index_2.clear();
-        lump_patno_1.clear();
         lump_patno_2.clear();
         lump.clear();
         lump_initial.clear();
@@ -413,30 +411,26 @@ int main(int argc, char* argv[]) {
         makeLumpIndex1(step, fn, ln, as, ct, cl, lump_index_1);
         makeLumpIndex2(step, nm, as, ct, cl, lump_index_2);
 
-        for (int ix: lump_index_1) {
-            lump_patno_1.push_back(patno[ix]);
-        }
-
-        for (int ix: lump_index_2) {
-            lump_patno_2.push_back(patno[ix]);
-        }
-
         // TODO test to make sure this matches previous output
-
-        for (auto ix: lump_index_1) {
-            lump.insert(ix);
-            lump_initial.insert(ix);
-        }
 
         for (auto ix: lump_index_2) {
             lump.insert(ix);
             lump_initial.insert(ix);
+            lump_patno_2.insert(patno[ix]);
+        }
+
+        for (auto ix: lump_index_1) {
+            auto it = lump_patno_2.find(patno[ix]);
+            
+            if (it != lump_patno_2.end()) {
+                lump.insert(ix);
+                lump_initial.insert(ix);
+            }
         }
 
         for (int indexy: lump_initial) {
             lump_index_1.clear();
             lump_index_2.clear();
-            lump_patno_1.clear();
             lump_patno_2.clear();
 
             colFN = find(XFNt, indexy);
@@ -446,24 +440,27 @@ int main(int argc, char* argv[]) {
             colCT = find(XCTt, indexy);
             colCL = find(XCLt, indexy);
 
-            ColumnView fn = getColumnView(XFN, colFN);
-            ColumnView ln = getColumnView(XLN, colLN);
-            ColumnView nm = getColumnView(XNM, colNM);
-            ColumnView as = getColumnView(XAS, colAS);
-            ColumnView ct = getColumnView(XCT, colCT);
-            ColumnView cl = getColumnView(XCL, colCL);
+            ColumnView fn_ = getColumnView(XFN, colFN);
+            ColumnView ln_ = getColumnView(XLN, colLN);
+            ColumnView nm_ = getColumnView(XNM, colNM);
+            ColumnView as_ = getColumnView(XAS, colAS);
+            ColumnView ct_ = getColumnView(XCT, colCT);
+            ColumnView cl_ = getColumnView(XCL, colCL);
 
-            makeLumpIndex1(step, fn, ln, as, ct, cl, lump_index_1);
-            makeLumpIndex2(step, nm, as, ct, cl, lump_index_2);
-
-            for (int ix: lump_index_1) {
-                lump_patno_1.push_back(patno[ix]);
-                lump.insert(ix);
-            }
+            makeLumpIndex1(step, fn_, ln_, as_, ct_, cl_, lump_index_1);
+            makeLumpIndex2(step, nm_, as_, ct_, cl_, lump_index_2);
 
             for (int ix: lump_index_2) {
-                lump_patno_2.push_back(patno[ix]);
                 lump.insert(ix);
+                lump_patno_2.insert(patno[ix]);
+            }
+
+            for (int ix: lump_index_1) {
+                auto it = lump_patno_2.find(patno[ix]);
+
+                if (it != lump_patno_2.end()) {
+                    lump.insert(ix);
+                }
             }
         }
 
@@ -485,7 +482,6 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < key.size(); i++) {
         out << key[i] << "\t" << inventorID[i] << std::endl;
     }
-
 
     clock_t endTime = clock();
     double elpasedSeconds = double(endTime - startTime) / CLOCKS_PER_SEC;
