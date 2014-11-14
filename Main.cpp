@@ -17,6 +17,169 @@
 typedef Eigen::Triplet<bool> Tripletb;
 typedef std::vector<Eigen::Triplet<bool>> TripletbList;
 
+void makeLumpIndex1(const std::vector<bool>& step,
+                    const Eigen::SparseMatrix<bool>& XFN, int colFN,
+                    const Eigen::SparseMatrix<bool>& XLN, int colLN,
+                    const Eigen::SparseMatrix<bool>& XAS, int colAS,
+                    const Eigen::SparseMatrix<bool>& XCT, int colCT,
+                    const Eigen::SparseMatrix<bool>& XCL, int colCL,
+                    std::vector<int> index)
+{
+    const int* colptrFN = XFN.outerIndexPtr();
+    int startFN = colptrFN[colFN];
+    int nnzFN = colptrFN[colFN + 1] - startFN;
+    const int* rowvalFN = XFN.innerIndexPtr() + startFN; 
+
+    const int* colptrLN = XLN.outerIndexPtr();
+    int startLN = colptrLN[colLN];
+    int nnzLN = colptrLN[colLN + 1] - startLN;
+    const int* rowvalLN = XLN.innerIndexPtr() + startLN; 
+
+    const int* colptrAS = XAS.outerIndexPtr();
+    int startAS = colptrAS[colAS];
+    int nnzAS = colptrAS[colAS + 1] - startAS;
+    const int* rowvalAS = XAS.innerIndexPtr() + startAS; 
+
+    const int* colptrCT = XCT.outerIndexPtr();
+    int startCT = colptrCT[colCT];
+    int nnzCT = colptrCT[colCT + 1] - startCT;
+    const int* rowvalCT = XCT.innerIndexPtr() + startCT; 
+    
+    const int* colptrCL = XCL.outerIndexPtr();
+    int startCL = colptrCL[colCL];
+    int nnzCL = colptrCL[colCL + 1] - startCL;
+    const int* rowvalCL = XCL.innerIndexPtr() + startCL; 
+
+    if (nnzFN == 0 || nnzLN == 0 || nnzAS == 0 || nnzCT == 0 || nnzCL == 0)
+    {
+        return;
+    }
+
+    int iFN = 0;
+    int iLN = 0;
+    int iAS = 0;
+    int iCT = 0;
+    int iCL = 0;
+
+    int r = rowvalFN[iFN];
+    if (rowvalLN[iLN] > r) r = rowvalLN[iLN];
+    if (rowvalAS[iAS] > r) r = rowvalAS[iAS];
+    if (rowvalCT[iCT] > r) r = rowvalCT[iCT];
+    if (rowvalCL[iCL] > r) r = rowvalCL[iCL];
+
+    int rFN, rLN, rAS, rCT, rCL;
+
+    while (iFN < nnzFN && iLN < nnzLN && iAS < nnzAS && iCT < nnzCT && iCL < nnzCL) {
+        
+        rFN = rowvalFN[iFN];
+        while (rFN < r && iFN < nnzFN) {
+            iFN++;
+            rFN = rowvalFN[iFN];
+        }
+
+        rLN = rowvalLN[iLN];
+        while (rLN < r && iLN < nnzLN) {
+            iLN++;
+            rLN = rowvalLN[iLN];
+        }
+
+        rAS = rowvalAS[iAS];
+        while (rAS < r && iAS < nnzAS) {
+            iAS++;
+            rAS = rowvalAS[iAS];
+        }
+
+        rCT = rowvalCT[iCT];
+        while (rCT < r && iCT < nnzCT) {
+            iCT++;
+            rCT = rowvalCT[iCT];
+        }
+
+        rCL = rowvalCL[iCL];
+        while (rCL < r && iCL < nnzCL) {
+            iCL++;
+            rCL = rowvalCL[iCL];
+        }
+
+        if (rFN == rLN && rLN == rAS && rAS == rCT && rCT == rCL && step[rFN]) {
+            index.push_back(rFN);
+        }
+
+        iFN++; iLN++; iAS++; iCT++; iCL++;
+
+        int r = rowvalFN[iFN];
+        if (rowvalLN[iLN] > r) r = rowvalLN[iLN];
+        if (rowvalAS[iAS] > r) r = rowvalAS[iAS];
+        if (rowvalCT[iCT] > r) r = rowvalCT[iCT];
+        if (rowvalCL[iCL] > r) r = rowvalCL[iCL];
+    }
+}
+
+void makeLumpIndex2(const std::vector<bool>& step,
+                    const Eigen::SparseMatrix<bool>& XNM, int colNM,
+                    const Eigen::SparseMatrix<bool>& XAS, int colAS,
+                    const Eigen::SparseMatrix<bool>& XCT, int colCT,
+                    const Eigen::SparseMatrix<bool>& XCL, int colCL,
+                    std::vector<int> index)
+{
+    const int* colptrNM = XNM.outerIndexPtr();
+    int startNM = colptrNM[colNM];
+    int nnzNM = colptrNM[colNM + 1] - startNM;
+    const int* rowvalNM = XNM.innerIndexPtr() + startNM; 
+
+    const int* colptrAS = XAS.outerIndexPtr();
+    int startAS = colptrAS[colAS];
+    int nnzAS = colptrAS[colAS + 1] - startAS;
+    const int* rowvalAS = XAS.innerIndexPtr() + startAS; 
+
+    const int* colptrCT = XCT.outerIndexPtr();
+    int startCT = colptrCT[colCT];
+    int nnzCT = colptrCT[colCT + 1] - startCT;
+    const int* rowvalCT = XCT.innerIndexPtr() + startCT; 
+    
+    const int* colptrCL = XCL.outerIndexPtr();
+    int startCL = colptrCL[colCL];
+    int nnzCL = colptrCL[colCL + 1] - startCL;
+    const int* rowvalCL = XCL.innerIndexPtr() + startCL; 
+
+    if (nnzNM == 0)
+        return;
+
+    int iNM = 0;
+    int iAS = 0;
+    int iCT = 0;
+    int iCL = 0;
+
+    int rNM;
+
+    while (iNM < nnzNM) {
+        rNM = rowvalNM[iNM];
+
+        if (!step[rNM]) {
+            iNM++;
+            continue;
+        }
+
+        while (iAS < nnzAS && rowvalAS[iAS] < rNM)
+            iAS++;
+
+        while (iCT < nnzCT && rowvalCT[iCT] < rNM)
+            iCT++;
+
+        while (iCL < nnzCL && rowvalCL[iCL] < rNM)
+            iCL++;
+
+        if (iAS >= nnzAS || iCT >= nnzCT || iCL >= nnzCL)
+            break;
+
+        if (rowvalAS[iAS] == rNM || rowvalCT[iCT] == rNM || rowvalCL[iCL] == rNM) {
+            index.push_back(rNM);
+        }
+
+        iNM++;
+    }
+}
+
 std::pair<int, int> loadAttributeMatrixTriplets(const std::string& directory, TripletbList& list) {
 
     std::string path = directory + PATHSEP + "_attribute_matrix";
@@ -229,9 +392,6 @@ int main(int argc, char* argv[]) {
 
     std::vector<bool> step(X.rows(), true);
 
-    Eigen::SparseVector<bool> C_buf_1(X.rows());
-    Eigen::SparseVector<bool> C_buf_2(X.rows());
-
     std::vector<int> lump_index_1;
     std::vector<int> lump_index_2;
     std::vector<std::string> lump_patno_1;
@@ -239,6 +399,8 @@ int main(int argc, char* argv[]) {
 
     std::set<int> lump;
     std::set<int> lump_initial;
+
+    int colFN, colLN, colNM, colAS, colCT, colCL;
 
     for (int index = 0; index < X.rows(); index++) {
         if (!step[index])
@@ -251,42 +413,22 @@ int main(int argc, char* argv[]) {
         lump.clear();
         lump_initial.clear();
 
-        // compute C_buf_1 = C_firstname & C_lastname & C_assignee & C_city & C_class
-        // compute C_buf_2 = C_name & (C_assignee | C_city | C_class)
+        colFN = find(XFNt, index);
+        colLN = find(XLNt, index);
+        colNM = find(XNMt, index);
+        colAS = find(XASt, index);
+        colCT = find(XCTt, index);
+        colCL = find(XCLt, index);
 
-        int target = find(XCLt, index);
-        C_buf_1 = XLN.col(target);
-        C_buf_2 = XLN.col(target);
+        makeLumpIndex1(step, XFN, colFN, XLN, colLN, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_1);
+        makeLumpIndex2(step, XNM, colNM, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_2);
 
-        target = find(XCTt, index);
-        C_buf_1 = C_buf_1.cwiseProduct(XCT.col(target));
-        C_buf_2 += XCT.col(target);
-
-        target = find(XASt, index);
-        C_buf_1 = C_buf_1.cwiseProduct(XAS.col(target));
-        C_buf_2 += XAS.col(target);
-
-        target = find(XLNt, index);
-        C_buf_1 = C_buf_1.cwiseProduct(XLN.col(target));
-
-        target = find(XFNt, index);
-        C_buf_1 = C_buf_1.cwiseProduct(XFN.col(target));
-
-        target = find(XNMt, index);
-        C_buf_2 = C_buf_2.cwiseProduct(XNM.col(target));
-
-        for (Eigen::SparseVector<bool>::InnerIterator it(C_buf_1); it; ++it) {
-            if (step[it.index()]) {
-                lump_index_1.push_back(it.index());
-                lump_patno_1.push_back(patno[it.index()]);
-            }
+        for (int ix: lump_index_1) {
+            lump_patno_1.push_back(patno[ix]);
         }
 
-        for (Eigen::SparseVector<bool>::InnerIterator it(C_buf_2); it; ++it) {
-            if (step[it.index()]) {
-                lump_index_2.push_back(it.index());
-                lump_patno_2.push_back(patno[it.index()]);
-            }
+        for (int ix: lump_index_2) {
+            lump_patno_2.push_back(patno[ix]);
         }
 
         // TODO test to make sure this matches previous output
@@ -307,49 +449,23 @@ int main(int argc, char* argv[]) {
             lump_patno_1.clear();
             lump_patno_2.clear();
 
-            // compute C_buf_1 = C_firstname & C_lastname & C_assignee & C_city & C_class
-            // compute C_buf_2 = C_name & (C_assignee | C_city | C_class)
+            colFN = find(XFNt, indexy);
+            colLN = find(XLNt, indexy);
+            colNM = find(XNMt, indexy);
+            colAS = find(XASt, indexy);
+            colCT = find(XCTt, indexy);
+            colCL = find(XCLt, indexy);
 
-            int target = find(XCLt, indexy);
-            C_buf_1 = XLN.col(target);
-            C_buf_2 = XLN.col(target);
+            makeLumpIndex1(step, XFN, colFN, XLN, colLN, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_1);
+            makeLumpIndex2(step, XNM, colNM, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_2);
 
-            target = find(XCTt, index);
-            C_buf_1 = C_buf_1.cwiseProduct(XCT.col(target));
-            C_buf_2 += XCT.col(target);
-
-            target = find(XASt, index);
-            C_buf_1 = C_buf_1.cwiseProduct(XAS.col(target));
-            C_buf_2 += XAS.col(target);
-
-            target = find(XLNt, index);
-            C_buf_1 = C_buf_1.cwiseProduct(XLN.col(target));
-
-            target = find(XFNt, index);
-            C_buf_1 = C_buf_1.cwiseProduct(XFN.col(target));
-
-            target = find(XNMt, index);
-            C_buf_2 = C_buf_2.cwiseProduct(XNM.col(target));
-
-            for (Eigen::SparseVector<bool>::InnerIterator it(C_buf_1); it; ++it) {
-                if (step[it.index()]) {
-                    lump_index_1.push_back(it.index());
-                    lump_patno_1.push_back(patno[it.index()]);
-                }
-            }
-
-            for (Eigen::SparseVector<bool>::InnerIterator it(C_buf_2); it; ++it) {
-                if (step[it.index()]) {
-                    lump_index_2.push_back(it.index());
-                    lump_patno_2.push_back(patno[it.index()]);
-                }
-            }
-
-            for (auto ix: lump_index_1) {
+            for (int ix: lump_index_1) {
+                lump_patno_1.push_back(patno[ix]);
                 lump.insert(ix);
             }
 
-            for (auto ix: lump_index_2) {
+            for (int ix: lump_index_2) {
+                lump_patno_2.push_back(patno[ix]);
                 lump.insert(ix);
             }
         }
