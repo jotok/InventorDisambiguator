@@ -44,7 +44,7 @@ void makeLumpIndex1(const std::vector<bool>& step,
                     const ColumnView& as,
                     const ColumnView& ct,
                     const ColumnView& cl,
-                    std::vector<int> index)
+                    std::vector<int>& index)
 {
     if (fn.nnz == 0 || ln.nnz == 0 || as.nnz == 0 || ct.nnz == 0 || cl.nnz == 0)
     {
@@ -66,7 +66,7 @@ void makeLumpIndex1(const std::vector<bool>& step,
     int rfn, rln, ras, rct, rcl;
 
     while (ifn < fn.nnz && iln < ln.nnz && ias < as.nnz && ict < ct.nnz && icl < cl.nnz) {
-        
+
         rfn = fn.rowval[ifn];
         while (rfn < r && ifn < fn.nnz) {
             ifn++;
@@ -97,17 +97,24 @@ void makeLumpIndex1(const std::vector<bool>& step,
             rcl = cl.rowval[icl];
         }
 
-        if (rfn == rln && rln == ras && ras == rct && rct == rcl && step[rfn]) {
-            index.push_back(rfn);
+        if (rfn == rln && rln == ras && ras == rct && rct == rcl) {
+            if (step[rfn])
+                index.push_back(rfn);
+
+            r++;
         }
 
-        ifn++; iln++; ias++; ict++; icl++;
+        if (rfn > r) r = rfn;
+        if (rln > r) r = rln;
+        if (ras > r) r = ras;
+        if (rct > r) r = rct;
+        if (rcl > r) r = rcl;
 
-        int r = fn.rowval[ifn];
-        if (ln.rowval[iln] > r) r = ln.rowval[iln];
-        if (as.rowval[ias] > r) r = as.rowval[ias];
-        if (ct.rowval[ict] > r) r = ct.rowval[ict];
-        if (cl.rowval[icl] > r) r = cl.rowval[icl];
+        if (rfn < r) ifn++;
+        if (rln < r) iln++;
+        if (ras < r) ias++;
+        if (rct < r) ict++;
+        if (rcl < r) icl++;
     }
 }
 
@@ -116,7 +123,7 @@ void makeLumpIndex2(const std::vector<bool>& step,
                     const ColumnView& as,
                     const ColumnView& ct,
                     const ColumnView& cl,
-                    std::vector<int> index)
+                    std::vector<int>& index)
 {
     if (nm.nnz == 0)
         return;
@@ -145,7 +152,7 @@ void makeLumpIndex2(const std::vector<bool>& step,
         while (icl < cl.nnz && cl.rowval[icl] < rnm)
             icl++;
 
-        if (ias >= as.nnz || ict >= ct.nnz || icl >= cl.nnz)
+        if (ias >= as.nnz && ict >= ct.nnz && icl >= cl.nnz)
             break;
 
         if (as.rowval[ias] == rnm || ct.rowval[ict] == rnm || cl.rowval[icl] == rnm) {
