@@ -17,166 +17,142 @@
 typedef Eigen::Triplet<bool> Tripletb;
 typedef std::vector<Eigen::Triplet<bool>> TripletbList;
 
+struct ColumnView {
+    ColumnView(int, const int*);
+    int nnz;
+    const int* rowval;
+};
+
+ColumnView::ColumnView(int nnz, const int* rowval)
+    : nnz{nnz}
+    , rowval{rowval}
+{}
+
+template <typename T>
+const ColumnView getColumnView(const Eigen::SparseMatrix<T>& mat, int col) {
+    const int* colptr = mat.outerIndexPtr();
+    int start = colptr[col];
+    int nnz = colptr[col + 1] - start;
+    const int* rowval = mat.innerIndexPtr() + start;
+
+    return ColumnView(nnz, rowval);
+}
+
 void makeLumpIndex1(const std::vector<bool>& step,
-                    const Eigen::SparseMatrix<bool>& XFN, int colFN,
-                    const Eigen::SparseMatrix<bool>& XLN, int colLN,
-                    const Eigen::SparseMatrix<bool>& XAS, int colAS,
-                    const Eigen::SparseMatrix<bool>& XCT, int colCT,
-                    const Eigen::SparseMatrix<bool>& XCL, int colCL,
+                    const ColumnView& fn,
+                    const ColumnView& ln,
+                    const ColumnView& as,
+                    const ColumnView& ct,
+                    const ColumnView& cl,
                     std::vector<int> index)
 {
-    const int* colptrFN = XFN.outerIndexPtr();
-    int startFN = colptrFN[colFN];
-    int nnzFN = colptrFN[colFN + 1] - startFN;
-    const int* rowvalFN = XFN.innerIndexPtr() + startFN; 
-
-    const int* colptrLN = XLN.outerIndexPtr();
-    int startLN = colptrLN[colLN];
-    int nnzLN = colptrLN[colLN + 1] - startLN;
-    const int* rowvalLN = XLN.innerIndexPtr() + startLN; 
-
-    const int* colptrAS = XAS.outerIndexPtr();
-    int startAS = colptrAS[colAS];
-    int nnzAS = colptrAS[colAS + 1] - startAS;
-    const int* rowvalAS = XAS.innerIndexPtr() + startAS; 
-
-    const int* colptrCT = XCT.outerIndexPtr();
-    int startCT = colptrCT[colCT];
-    int nnzCT = colptrCT[colCT + 1] - startCT;
-    const int* rowvalCT = XCT.innerIndexPtr() + startCT; 
-    
-    const int* colptrCL = XCL.outerIndexPtr();
-    int startCL = colptrCL[colCL];
-    int nnzCL = colptrCL[colCL + 1] - startCL;
-    const int* rowvalCL = XCL.innerIndexPtr() + startCL; 
-
-    if (nnzFN == 0 || nnzLN == 0 || nnzAS == 0 || nnzCT == 0 || nnzCL == 0)
+    if (fn.nnz == 0 || ln.nnz == 0 || as.nnz == 0 || ct.nnz == 0 || cl.nnz == 0)
     {
         return;
     }
 
-    int iFN = 0;
-    int iLN = 0;
-    int iAS = 0;
-    int iCT = 0;
-    int iCL = 0;
+    int ifn = 0;
+    int iln = 0;
+    int ias = 0;
+    int ict = 0;
+    int icl = 0;
 
-    int r = rowvalFN[iFN];
-    if (rowvalLN[iLN] > r) r = rowvalLN[iLN];
-    if (rowvalAS[iAS] > r) r = rowvalAS[iAS];
-    if (rowvalCT[iCT] > r) r = rowvalCT[iCT];
-    if (rowvalCL[iCL] > r) r = rowvalCL[iCL];
+    int r = fn.rowval[ifn];
+    if (ln.rowval[iln] > r) r = ln.rowval[iln];
+    if (as.rowval[ias] > r) r = as.rowval[ias];
+    if (ct.rowval[ict] > r) r = ct.rowval[ict];
+    if (cl.rowval[icl] > r) r = cl.rowval[icl];
 
-    int rFN, rLN, rAS, rCT, rCL;
+    int rfn, rln, ras, rct, rcl;
 
-    while (iFN < nnzFN && iLN < nnzLN && iAS < nnzAS && iCT < nnzCT && iCL < nnzCL) {
+    while (ifn < fn.nnz && iln < ln.nnz && ias < as.nnz && ict < ct.nnz && icl < cl.nnz) {
         
-        rFN = rowvalFN[iFN];
-        while (rFN < r && iFN < nnzFN) {
-            iFN++;
-            rFN = rowvalFN[iFN];
+        rfn = fn.rowval[ifn];
+        while (rfn < r && ifn < fn.nnz) {
+            ifn++;
+            rfn = fn.rowval[ifn];
         }
 
-        rLN = rowvalLN[iLN];
-        while (rLN < r && iLN < nnzLN) {
-            iLN++;
-            rLN = rowvalLN[iLN];
+        rln = ln.rowval[iln];
+        while (rln < r && iln < ln.nnz) {
+            iln++;
+            rln = ln.rowval[iln];
         }
 
-        rAS = rowvalAS[iAS];
-        while (rAS < r && iAS < nnzAS) {
-            iAS++;
-            rAS = rowvalAS[iAS];
+        ras = as.rowval[ias];
+        while (ras < r && ias < as.nnz) {
+            ias++;
+            ras = as.rowval[ias];
         }
 
-        rCT = rowvalCT[iCT];
-        while (rCT < r && iCT < nnzCT) {
-            iCT++;
-            rCT = rowvalCT[iCT];
+        rct = ct.rowval[ict];
+        while (rct < r && ict < ct.nnz) {
+            ict++;
+            rct = ct.rowval[ict];
         }
 
-        rCL = rowvalCL[iCL];
-        while (rCL < r && iCL < nnzCL) {
-            iCL++;
-            rCL = rowvalCL[iCL];
+        rcl = cl.rowval[icl];
+        while (rcl < r && icl < cl.nnz) {
+            icl++;
+            rcl = cl.rowval[icl];
         }
 
-        if (rFN == rLN && rLN == rAS && rAS == rCT && rCT == rCL && step[rFN]) {
-            index.push_back(rFN);
+        if (rfn == rln && rln == ras && ras == rct && rct == rcl && step[rfn]) {
+            index.push_back(rfn);
         }
 
-        iFN++; iLN++; iAS++; iCT++; iCL++;
+        ifn++; iln++; ias++; ict++; icl++;
 
-        int r = rowvalFN[iFN];
-        if (rowvalLN[iLN] > r) r = rowvalLN[iLN];
-        if (rowvalAS[iAS] > r) r = rowvalAS[iAS];
-        if (rowvalCT[iCT] > r) r = rowvalCT[iCT];
-        if (rowvalCL[iCL] > r) r = rowvalCL[iCL];
+        int r = fn.rowval[ifn];
+        if (ln.rowval[iln] > r) r = ln.rowval[iln];
+        if (as.rowval[ias] > r) r = as.rowval[ias];
+        if (ct.rowval[ict] > r) r = ct.rowval[ict];
+        if (cl.rowval[icl] > r) r = cl.rowval[icl];
     }
 }
 
 void makeLumpIndex2(const std::vector<bool>& step,
-                    const Eigen::SparseMatrix<bool>& XNM, int colNM,
-                    const Eigen::SparseMatrix<bool>& XAS, int colAS,
-                    const Eigen::SparseMatrix<bool>& XCT, int colCT,
-                    const Eigen::SparseMatrix<bool>& XCL, int colCL,
+                    const ColumnView& nm,
+                    const ColumnView& as,
+                    const ColumnView& ct,
+                    const ColumnView& cl,
                     std::vector<int> index)
 {
-    const int* colptrNM = XNM.outerIndexPtr();
-    int startNM = colptrNM[colNM];
-    int nnzNM = colptrNM[colNM + 1] - startNM;
-    const int* rowvalNM = XNM.innerIndexPtr() + startNM; 
-
-    const int* colptrAS = XAS.outerIndexPtr();
-    int startAS = colptrAS[colAS];
-    int nnzAS = colptrAS[colAS + 1] - startAS;
-    const int* rowvalAS = XAS.innerIndexPtr() + startAS; 
-
-    const int* colptrCT = XCT.outerIndexPtr();
-    int startCT = colptrCT[colCT];
-    int nnzCT = colptrCT[colCT + 1] - startCT;
-    const int* rowvalCT = XCT.innerIndexPtr() + startCT; 
-    
-    const int* colptrCL = XCL.outerIndexPtr();
-    int startCL = colptrCL[colCL];
-    int nnzCL = colptrCL[colCL + 1] - startCL;
-    const int* rowvalCL = XCL.innerIndexPtr() + startCL; 
-
-    if (nnzNM == 0)
+    if (nm.nnz == 0)
         return;
 
-    int iNM = 0;
-    int iAS = 0;
-    int iCT = 0;
-    int iCL = 0;
+    int inm = 0;
+    int ias = 0;
+    int ict = 0;
+    int icl = 0;
 
-    int rNM;
+    int rnm;
 
-    while (iNM < nnzNM) {
-        rNM = rowvalNM[iNM];
+    while (inm < nm.nnz) {
+        rnm = nm.rowval[inm];
 
-        if (!step[rNM]) {
-            iNM++;
+        if (!step[rnm]) {
+            inm++;
             continue;
         }
 
-        while (iAS < nnzAS && rowvalAS[iAS] < rNM)
-            iAS++;
+        while (ias < as.nnz && as.rowval[ias] < rnm)
+            ias++;
 
-        while (iCT < nnzCT && rowvalCT[iCT] < rNM)
-            iCT++;
+        while (ict < ct.nnz && ct.rowval[ict] < rnm)
+            ict++;
 
-        while (iCL < nnzCL && rowvalCL[iCL] < rNM)
-            iCL++;
+        while (icl < cl.nnz && cl.rowval[icl] < rnm)
+            icl++;
 
-        if (iAS >= nnzAS || iCT >= nnzCT || iCL >= nnzCL)
+        if (ias >= as.nnz || ict >= ct.nnz || icl >= cl.nnz)
             break;
 
-        if (rowvalAS[iAS] == rNM || rowvalCT[iCT] == rNM || rowvalCL[iCL] == rNM) {
-            index.push_back(rNM);
+        if (as.rowval[ias] == rnm || ct.rowval[ict] == rnm || cl.rowval[icl] == rnm) {
+            index.push_back(rnm);
         }
 
-        iNM++;
+        inm++;
     }
 }
 
@@ -420,8 +396,15 @@ int main(int argc, char* argv[]) {
         colCT = find(XCTt, index);
         colCL = find(XCLt, index);
 
-        makeLumpIndex1(step, XFN, colFN, XLN, colLN, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_1);
-        makeLumpIndex2(step, XNM, colNM, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_2);
+        ColumnView fn = getColumnView(XFN, colFN);
+        ColumnView ln = getColumnView(XLN, colLN);
+        ColumnView nm = getColumnView(XNM, colNM);
+        ColumnView as = getColumnView(XAS, colAS);
+        ColumnView ct = getColumnView(XCT, colCT);
+        ColumnView cl = getColumnView(XCL, colCL);
+
+        makeLumpIndex1(step, fn, ln, as, ct, cl, lump_index_1);
+        makeLumpIndex2(step, nm, as, ct, cl, lump_index_2);
 
         for (int ix: lump_index_1) {
             lump_patno_1.push_back(patno[ix]);
@@ -456,8 +439,15 @@ int main(int argc, char* argv[]) {
             colCT = find(XCTt, indexy);
             colCL = find(XCLt, indexy);
 
-            makeLumpIndex1(step, XFN, colFN, XLN, colLN, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_1);
-            makeLumpIndex2(step, XNM, colNM, XAS, colAS, XCT, colCT, XCL, colCL, lump_index_2);
+            ColumnView fn = getColumnView(XFN, colFN);
+            ColumnView ln = getColumnView(XLN, colLN);
+            ColumnView nm = getColumnView(XNM, colNM);
+            ColumnView as = getColumnView(XAS, colAS);
+            ColumnView ct = getColumnView(XCT, colCT);
+            ColumnView cl = getColumnView(XCL, colCL);
+
+            makeLumpIndex1(step, fn, ln, as, ct, cl, lump_index_1);
+            makeLumpIndex2(step, nm, as, ct, cl, lump_index_2);
 
             for (int ix: lump_index_1) {
                 lump_patno_1.push_back(patno[ix]);
