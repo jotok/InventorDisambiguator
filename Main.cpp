@@ -8,12 +8,18 @@
 
 #include <Eigen/SparseCore>
 
+#ifdef _WIN32
+#define PATHSEP '\\'
+#else
+#define PATHSEP '/'
+#endif
+
 typedef Eigen::Triplet<bool> Tripletb;
 typedef std::vector<Eigen::Triplet<bool>> TripletbList;
 
 std::pair<int, int> loadAttributeMatrixTriplets(const std::string& directory, TripletbList& list) {
 
-    std::string path = directory + "\\_attribute_matrix";
+    std::string path = directory + PATHSEP + "_attribute_matrix";
     std::cout << "Loading attribute matrix from '" << path << "'" << std::endl;
 
     std::ifstream in;
@@ -45,7 +51,7 @@ std::pair<int, int> loadAttributeMatrixTriplets(const std::string& directory, Tr
 }
 
 void loadAttributeDictionary(const std::string& directory, std::vector<std::string>& words) {
-    std::string path = directory + "\\_attribute_dictionary";
+    std::string path = directory + PATHSEP + "_attribute_dictionary";
     std::cout << "Loading attribute dictionary from '" << path << "'" << std::endl;
 
     std::ifstream in;
@@ -66,7 +72,7 @@ void loadAttributeMetric(const std::string& directory,
                          std::vector<std::string>& patno,
                          std::vector<std::string>& inventorID) 
 {
-    std::string path = directory + "\\_attribute_metric";
+    std::string path = directory + PATHSEP + "_attribute_metric";
     std::cout << "Loading attribute metrics from '" << path << "'" << std::endl;
 
     std::ifstream in;
@@ -94,7 +100,7 @@ void loadAttributeMetric(const std::string& directory,
 }
 
 void loadDisambiguatorInput(const std::string& directory, std::vector<std::string>& key) {
-    std::string path = directory + "\\_disambiguator_input.csv";
+    std::string path = directory + PATHSEP + "_disambiguator_input.csv";
     std::cout << "Loading disambiguator input from '" << path << "'" << std::endl;
 
     std::ifstream in;
@@ -359,7 +365,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::string path = directory + "\\_disambiguator_output_cpp.tsv";
+    std::string path = directory + PATHSEP + "_disambiguator_output_cpp.tsv";
     std::ofstream out;
     out.open(path);
 
