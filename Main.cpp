@@ -1,5 +1,7 @@
+#include <cstdio>
 #include <ctime>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <sstream>
 #include <set>
@@ -303,6 +305,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::string directory(argv[1]);
+    std::ios_base::sync_with_stdio(false);
 
     TripletbList attributeTriplets;
     std::pair<int, int> size = loadAttributeMatrixTriplets(directory, attributeTriplets);
@@ -476,12 +479,17 @@ int main(int argc, char* argv[]) {
     }
 
     std::string path = directory + PATHSEP + "_disambiguator_output_cpp.tsv";
-    std::ofstream out;
-    out.open(path);
+    const char *cpath = path.c_str();
+    // std::ofstream out;
+    // out.open(path);
+
+    FILE *out = fopen(cpath, "w");
 
     for (int i = 0; i < key.size(); i++) {
-        out << key[i] << "\t" << inventorID[i] << std::endl;
+        // out << key[i] << "\t" << inventorID[i] << "\n";
+        fprintf(out, "%s\t%s\n", key[i].c_str(), inventorID[i].c_str());
     }
+    fclose(out);
 
     clock_t endTime = clock();
     double elpasedSeconds = double(endTime - startTime) / CLOCKS_PER_SEC;
