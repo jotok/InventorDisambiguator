@@ -422,7 +422,7 @@ int main(int argc, char* argv[]) {
         for (auto ix: lump_index_1) {
             auto it = lump_patno_2.find(patno[ix]);
             
-            if (it != lump_patno_2.end()) {
+            if (it == lump_patno_2.end()) {
                 lump.insert(ix);
                 lump_initial.insert(ix);
             }
@@ -458,7 +458,7 @@ int main(int argc, char* argv[]) {
             for (int ix: lump_index_1) {
                 auto it = lump_patno_2.find(patno[ix]);
 
-                if (it != lump_patno_2.end()) {
+                if (it == lump_patno_2.end()) {
                     lump.insert(ix);
                 }
             }
