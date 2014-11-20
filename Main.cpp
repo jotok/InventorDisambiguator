@@ -1,9 +1,6 @@
+#include <cassert>
 #include <cstdio>
 #include <ctime>
-#include <fstream>
-#include <ios>
-#include <iostream>
-#include <sstream>
 #include <set>
 #include <string>
 #include <vector>
@@ -16,9 +13,41 @@
 #define PATHSEP '/'
 #endif
 
+#define WORDBUFSIZE 1000
+#define PATHBUFSIZE 1000
+
+char pathbuffer[PATHBUFSIZE];
+
 typedef Eigen::Triplet<bool> Tripletb;
 typedef std::vector<Eigen::Triplet<bool>> TripletbList;
 
+/**
+ * A bare-bones sparse boolean matrix type.
+ */
+struct Sp {
+    template <typename T>
+    Sp(Eigen::SparseMatrix<T>& mat);
+
+    int m;             // number of rows
+    int n;             // number of columns
+    const int* colptr; // column i is in colptr[i]:(colptr[i+1]-1)
+    const int* rowval; // row values of nonzeros
+};
+
+/**
+ * Construct a Sp struct which is a view to the data in an Eigen::SparseMatrix.
+ */
+template <typename T>
+Sp::Sp(Eigen::SparseMatrix<T>& mat) 
+    : m{mat.rows()}
+    , n{mat.cols()}
+    , colptr{mat.outerIndexPtr()}
+    , rowval{mat.innerIndexPtr()}
+{}
+
+/**
+ * A view to a single column in a sparse boolean matrix.
+ */
 struct ColumnView {
     ColumnView(int, const int*);
     int nnz;
@@ -30,16 +59,59 @@ ColumnView::ColumnView(int nnz, const int* rowval)
     , rowval{rowval}
 {}
 
-template <typename T>
-const ColumnView getColumnView(const Eigen::SparseMatrix<T>& mat, int col) {
-    const int* colptr = mat.outerIndexPtr();
-    int start = colptr[col];
-    int nnz = colptr[col + 1] - start;
-    const int* rowval = mat.innerIndexPtr() + start;
+/**
+ * Get a view of the data in column `col` in the sparse boolean matrix `mat`.
+ */
+const ColumnView getColumnView(const Sp& mat, int col) {
+    int start = mat.colptr[col];
+    int nnz = mat.colptr[col + 1] - start;
+    const int* rowval = mat.rowval + start;
 
     return ColumnView(nnz, rowval);
 }
 
+/**
+ * Search the array `ary` for an element greater than or equal to `value` between 
+ * the indices `start` and `end` (inclusive). If such an element is found, write
+ * the index of the element to `result`.
+ *
+ * \param ary A sorted array of int values to be searched.
+ * \param start The starting index into the array where we will search.
+ * \param end The last index in the array where we will search (inclusive).
+ * \param value The value we are searching for.
+ * \param result A pointer to an inter where we will store the index of the found
+ * element.
+ *
+ * \return 1 if an element is found, 0 otherwise.
+ */
+int binarySearch(const int* ary, int start, int end, int value, int* result) {
+    assert(start <= end);
+    
+    if (end - start <= 1) {
+        if (ary[start] >= value) {
+            *result = start;
+            return 1;
+        }
+
+        if (ary[end] >= value) {
+            *result = end;
+            return 1;
+        }
+
+        return 0;
+    }
+    
+    int mid = (start + end) / 2;
+
+    if (ary[mid] >= value)
+        return binarySearch(ary, start, mid, value, result);
+    else
+        return binarySearch(ary, mid, end, value, result);
+}
+
+/**
+ * Finds the nonzero indices of `step & fn & ln & as & ct & cl` and adds them to `index`.
+ */
 void makeLumpIndex1(const std::vector<bool>& step,
                     const ColumnView& fn,
                     const ColumnView& ln,
@@ -49,9 +121,7 @@ void makeLumpIndex1(const std::vector<bool>& step,
                     std::vector<int>& index)
 {
     if (fn.nnz == 0 || ln.nnz == 0 || as.nnz == 0 || ct.nnz == 0 || cl.nnz == 0)
-    {
         return;
-    }
 
     int ifn = 0;
     int iln = 0;
@@ -65,39 +135,33 @@ void makeLumpIndex1(const std::vector<bool>& step,
     if (ct.rowval[ict] > r) r = ct.rowval[ict];
     if (cl.rowval[icl] > r) r = cl.rowval[icl];
 
-    int rfn, rln, ras, rct, rcl;
+    int rfn, rln, ras, rct, rcl, temp;
 
-    while (ifn < fn.nnz && iln < ln.nnz && ias < as.nnz && ict < ct.nnz && icl < cl.nnz) {
-
-        rfn = fn.rowval[ifn];
-        while (rfn < r && ifn < fn.nnz) {
-            ifn++;
-            rfn = fn.rowval[ifn];
-        }
-
+    while (true) {
+        if (!binarySearch(ln.rowval, iln, ln.nnz - 1, r, &temp))
+            break;
+        iln = temp;
         rln = ln.rowval[iln];
-        while (rln < r && iln < ln.nnz) {
-            iln++;
-            rln = ln.rowval[iln];
-        }
 
+        if (!binarySearch(fn.rowval, ifn, fn.nnz - 1, r, &temp))
+            break;
+        ifn = temp;
+        rfn = fn.rowval[ifn];
+
+        if (!binarySearch(as.rowval, ias, as.nnz - 1, r, &temp))
+            break;
+        ias = temp;
         ras = as.rowval[ias];
-        while (ras < r && ias < as.nnz) {
-            ias++;
-            ras = as.rowval[ias];
-        }
 
+        if (!binarySearch(ct.rowval, ict, ct.nnz - 1, r, &temp))
+            break;
+        ict = temp;
         rct = ct.rowval[ict];
-        while (rct < r && ict < ct.nnz) {
-            ict++;
-            rct = ct.rowval[ict];
-        }
 
+        if (!binarySearch(cl.rowval, icl, cl.nnz - 1, r, &temp))
+            break;
+        icl = temp;
         rcl = cl.rowval[icl];
-        while (rcl < r && icl < cl.nnz) {
-            icl++;
-            rcl = cl.rowval[icl];
-        }
 
         if (rfn == rln && rln == ras && ras == rct && rct == rcl) {
             if (step[rfn])
@@ -111,15 +175,12 @@ void makeLumpIndex1(const std::vector<bool>& step,
         if (ras > r) r = ras;
         if (rct > r) r = rct;
         if (rcl > r) r = rcl;
-
-        if (rfn < r) ifn++;
-        if (rln < r) iln++;
-        if (ras < r) ias++;
-        if (rct < r) ict++;
-        if (rcl < r) icl++;
     }
 }
 
+/**
+ * Finds the nonzero indices of `step & nm & (as | ct | cl)` and adds them to `index`.
+ */
 void makeLumpIndex2(const std::vector<bool>& step,
                     const ColumnView& nm,
                     const ColumnView& as,
@@ -134,6 +195,10 @@ void makeLumpIndex2(const std::vector<bool>& step,
     int ias = 0;
     int ict = 0;
     int icl = 0;
+    int foundas = 1;
+    int foundct = 1; 
+    int foundcl = 1;
+    int temp;
 
     int rnm;
 
@@ -145,16 +210,16 @@ void makeLumpIndex2(const std::vector<bool>& step,
             continue;
         }
 
-        while (ias < as.nnz && as.rowval[ias] < rnm)
-            ias++;
+        if (foundas && (foundas = binarySearch(as.rowval, ias, as.nnz - 1, rnm, &temp)))
+            ias = temp;
 
-        while (ict < ct.nnz && ct.rowval[ict] < rnm)
-            ict++;
+        if (foundct && (foundct = binarySearch(ct.rowval, ict, ct.nnz - 1, rnm, &temp)))
+            ict = temp;
 
-        while (icl < cl.nnz && cl.rowval[icl] < rnm)
-            icl++;
+        if (foundcl && (foundcl = binarySearch(cl.rowval, icl, cl.nnz - 1, rnm, &temp)))
+            icl = temp;
 
-        if (ias >= as.nnz && ict >= ct.nnz && icl >= cl.nnz)
+        if (!(foundas || foundct || foundcl))
             break;
 
         if (as.rowval[ias] == rnm || ct.rowval[ict] == rnm || cl.rowval[icl] == rnm) {
@@ -165,26 +230,22 @@ void makeLumpIndex2(const std::vector<bool>& step,
     }
 }
 
-std::pair<int, int> loadAttributeMatrixTriplets(const std::string& directory, TripletbList& list) {
+/**
+ * Read in the attribute matrix file and create a list of triplets that will be used to
+ * set the nonzero values in an Eigen::SparseMatrix object.
+ */
+std::pair<int, int> loadAttributeMatrixTriplets(const char* directory, TripletbList& list) {
 
-    std::string path = directory + PATHSEP + "_attribute_matrix";
-    std::cout << "Loading attribute matrix from '" << path << "'" << std::endl;
+    *pathbuffer = '\0';
+    snprintf(pathbuffer, PATHBUFSIZE, "%s%c%s", directory, PATHSEP, "_attribute_matrix");
+    printf("Loading attribute matrix from %s\n", pathbuffer);
 
-    std::ifstream in;
-    in.open(path);
+    FILE* in = fopen(pathbuffer, "r");
 
     int i, j;
-    bool b;
-    char c;
-    std::string line;
-
     std::pair<int, int> size{0, 0};
 
-    while (std::getline(in, line)) {
-        std::istringstream iss(line);
-        iss >> i >> c;
-        iss >> j >> c;
-        iss >> b;
+    while (fscanf(in, "%d,%d,%*d", &i, &j) == 2) {
 
         if (i > size.first)
             size.first = i;
@@ -192,78 +253,128 @@ std::pair<int, int> loadAttributeMatrixTriplets(const std::string& directory, Tr
         if (j > size.second)
             size.second = j;
 
-        list.push_back(Tripletb(i - 1, j - 1, b));
+        list.push_back(Tripletb(i - 1, j - 1, 1));
     }
 
+    fclose(in);
     return size;
 }
 
-void loadAttributeDictionary(const std::string& directory, std::vector<std::string>& words) {
-    std::string path = directory + PATHSEP + "_attribute_dictionary";
-    std::cout << "Loading attribute dictionary from '" << path << "'" << std::endl;
+/**
+ * Load the attribute dictionary.
+ */
+void loadAttributeDictionary(const char* directory, std::vector<std::string>& words) {
 
-    std::ifstream in;
-    in.open(path);
+    *pathbuffer = '\0';
+    snprintf(pathbuffer, PATHBUFSIZE, "%s%c%s", directory, PATHSEP, "_attribute_dictionary");
+    printf("Loading attribute dictionary from %s\n", pathbuffer);
 
-    int _x, _y;
+    FILE* in = fopen(pathbuffer, "r");
+    char word[WORDBUFSIZE];
 
-    std::string line;
-    while (std::getline(in, line)) {
-        std::string s;
-        std::istringstream iss(line);
-        iss >> _x >> s >> _y;
-        words.push_back(s);
+    while (fscanf(in, "%*d %s %*d", word) == 1) {
+        words.push_back(std::string(word));
     }
+
+    fclose(in);
 }
 
-void loadAttributeMetric(const std::string& directory, 
-                         std::vector<std::string>& patno,
-                         std::vector<std::string>& inventorID) 
+/**
+ * Load the attribute metric file. This function assumes that `patno` and `inventorID` 
+ * are already malloc'd.
+ */
+void loadAttributeMetric(const char* directory, 
+                         char** patno,
+                         int* patnoCount,
+                         char** inventorID,
+                         int* inventorIDCount) 
 {
-    std::string path = directory + PATHSEP + "_attribute_metric";
-    std::cout << "Loading attribute metrics from '" << path << "'" << std::endl;
+    *pathbuffer = '\0';
+    snprintf(pathbuffer, PATHBUFSIZE, "%s%c%s", directory, PATHSEP, "_attribute_metric");
+    printf("Loading attribute metrics from %s\n", pathbuffer);
 
-    std::ifstream in;
-    in.open(path);
+    FILE* in = fopen(pathbuffer, "r");
+    char c, pn[WORDBUFSIZE], id[WORDBUFSIZE];
+    *patnoCount = *inventorIDCount = 0;
+    int i, j;
 
-    std::string line;
-    std::string _s;
+    c = fgetc(in);
+    while (c != EOF) {
+        // read the patent number
+        i = 0;
+        while (c != '\t') {
+            pn[i++] = c;
+            c = fgetc(in);
+        } 
+        pn[i++] = '\0';
 
-    while (std::getline(in, line)) {
-        std::string pn;
-        std::string id;
-        std::istringstream iss(line);
+        // skip 5 tabs
+        j = 0;
+        while (j < 5) {
+            while ((c = fgetc(in)) != '\t')
+                ;
 
-        std::getline(iss, pn, '\t');
-        std::getline(iss, _s, '\t');
-        std::getline(iss, _s, '\t'); // inventor
-        std::getline(iss, _s, '\t'); // assignee
-        std::getline(iss, _s, '\t'); // class 
-        std::getline(iss, _s, '\t'); // lastname
-        std::getline(iss, id, '\t');
+            j++;
+        }
 
-        patno.push_back(pn);
-        inventorID.push_back(id);
+        // read the ID
+        j = 0;
+        while ((c = fgetc(in)) != '\n') {
+            id[j++] = c;
+        }
+        id[j++] = '\0';
+
+        char* thispn = (char*)malloc(i * sizeof(char));
+        strncpy(thispn, pn, i);
+        patno[(*patnoCount)++] = thispn;
+
+        char* thisid = (char*)malloc(j * sizeof(char));
+        strncpy(thisid, id, j);
+        inventorID[(*inventorIDCount)++] = thisid;
+
+        c = fgetc(in);
+    }
+
+    fclose(in);
+}
+
+/**
+ * Load keys from the disambiguator input file. This function assumes `key` is already malloc'd
+ */
+void loadDisambiguatorInput(const char* directory, char** key, int* keyCount) {
+    *pathbuffer = '\0';
+    snprintf(pathbuffer, PATHBUFSIZE, "%s%c%s", directory, PATHSEP, "_disambiguator_input.csv");
+    printf("Loading disambiguator input from %s\n", pathbuffer);
+
+    FILE* in = fopen(pathbuffer, "r");
+    char c, ky[WORDBUFSIZE];
+    *keyCount = 0;
+    int i;
+
+    c = fgetc(in);
+    while (c != EOF) {
+        i = 0;
+        while (c != '\t') {
+            ky[i++] = c;
+            c = fgetc(in);
+        }
+        ky[i++] = '\0';
+
+        char* thisky = (char*)malloc(i * sizeof(char));
+        strncpy(thisky, ky, i);
+        key[(*keyCount)++] = thisky;
+
+        while ((c = fgetc(in)) != '\n')
+            ;
+
+        c = fgetc(in);
     }
 }
 
-void loadDisambiguatorInput(const std::string& directory, std::vector<std::string>& key) {
-    std::string path = directory + PATHSEP + "_disambiguator_input.csv";
-    std::cout << "Loading disambiguator input from '" << path << "'" << std::endl;
-
-    std::ifstream in;
-    in.open(path);
-
-    std::string line;
-
-    while (std::getline(in, line)) {
-        std::string k;
-        std::istringstream iss(line);
-        iss >> k;
-        key.push_back(k);
-    }
-}
-
+/**
+ * Given the list of words loaded from the attribute dictionary, record the indices
+ * that begin with the given prefix.
+ */
 void findAttributeIndices(const std::vector<std::string>& words,
                           const std::string& prefix,
                           std::vector<int>& keep)
@@ -280,32 +391,50 @@ void findAttributeIndices(const std::vector<std::string>& words,
     }
 }
 
+/**
+ * Given a sparse matrix, return a new sparse matrix by extracting a list of columns.
+ *
+ * \param mat A sparse matrix object.
+ * \param keep A list of column indices that we want to keep from `mat`
+ *
+ * \return A `mat.rows() x keep.size()` sparse matrix consisting of the specified columns
+ * from `mat`.  
+ */
 template <typename T>
 Eigen::SparseMatrix<T> extractColumns(Eigen::SparseMatrix<T> mat, std::vector<int> keep) {
     Eigen::SparseMatrix<T> result(mat.rows(), keep.size());
-    for (int i = 0; i < keep.size(); i++)
-        result.col(i) = mat.col(keep[i]);
+    TripletbList list;
 
+    const int* colptr = mat.outerIndexPtr();
+    const int* rowval = mat.innerIndexPtr();
+
+    for (int i = 0; i < keep.size(); i++) {
+        int col = keep[i];
+        int start = colptr[col];
+        int nnz = colptr[col + 1] - start;
+        const int* rowval_ = rowval + start;
+
+        for (int j = 0; j < nnz; j++) {
+            list.push_back(Tripletb(rowval_[j], i, 1));
+        }
+    }
+
+    result.setFromTriplets(list.begin(), list.end());
     return result;
 }
 
-template <typename T>
-int find(Eigen::SparseMatrix<T> mat, int col) {
-    typename Eigen::SparseMatrix<T>::InnerIterator it(mat, col);
-    return it.index();
-    // const int* outer = mat.outerIndexPtr();
-    // const int* inner = mat.innerIndexPtr();
-    // return inner[outer[col]];
-}
+/**
+ * Return the first row index containing a nonzero value in column `col` of `mat`.
+ */
+inline int find(const Sp& mat, int col) { return mat.rowval[mat.colptr[col]]; }
 
 int main(int argc, char* argv[]) {
     if (argc == 1) {
-        std::cout << "Usage: disambig DIRECTORY" << std::endl;
+        printf("Usage: disambig DIRECTORY\n");
         return 1;
     }
 
-    std::string directory(argv[1]);
-    std::ios_base::sync_with_stdio(false);
+    char* directory = argv[1];
 
     TripletbList attributeTriplets;
     std::pair<int, int> size = loadAttributeMatrixTriplets(directory, attributeTriplets);
@@ -313,30 +442,33 @@ int main(int argc, char* argv[]) {
     Eigen::SparseMatrix<bool> X(size.first, size.second);
     X.setFromTriplets(attributeTriplets.begin(), attributeTriplets.end());
 
-    std::cout << "Attribute matrix dimensions: (" << X.rows() << ", " << X.cols() << ")" << std::endl;
-    std::cout << "Nonzero entries: " << X.nonZeros() << std::endl;
+    printf("Attribute matrix dimensions (%d, %d)\n", X.rows(), X.cols());
+    printf("Nonzero entries: %d\n", X.nonZeros());
 
     std::vector<std::string> words;
     loadAttributeDictionary(directory, words);
 
-    std::cout << "Words: " << words.size() << std::endl;
+    printf("Words: %d\n", words.size());
 
-    std::vector<std::string> patno;
-    std::vector<std::string> inventorID;
-    loadAttributeMetric(directory, patno, inventorID);
+    char** patno = (char**)malloc(X.rows() * sizeof(char*));
+    char** inventorID = (char**)malloc(X.rows() * sizeof(char*));
+    int patnoCount, inventorIDCount;
+    loadAttributeMetric(directory, patno, &patnoCount, inventorID, &inventorIDCount);
 
-    std::cout << "Patent Numbers: " << patno.size() << std::endl;
-    std::cout << "Inventor IDs: " << inventorID.size() << std::endl;
+    printf("Patent numbers: %d\n", patnoCount);
+    printf("Inventor IDs: %d\n", inventorIDCount);
 
-    std::vector<std::string> key;
-    loadDisambiguatorInput(directory, key);
+    char** key = (char**)malloc(X.rows() * sizeof(char*));
+    int keyCount;
+    loadDisambiguatorInput(directory, key, &keyCount);
 
-    std::cout << "Keys: " << key.size() << std::endl;
+    printf("Keys: %d\n", keyCount);
 
     Eigen::SparseMatrix<bool> Xt = X.transpose();
     X.makeCompressed();
     Xt.makeCompressed();
 
+    printf("Starting clock...\n");
     clock_t startTime = clock();
 
     std::vector<int> keep;
@@ -345,36 +477,52 @@ int main(int argc, char* argv[]) {
     Eigen::SparseMatrix<bool> XLNt = XLN.transpose();
     XLN.makeCompressed();
     XLNt.makeCompressed();
+    Sp XXLN(XLN);
+    Sp XXLNt(XLNt);
 
     findAttributeIndices(words, "FN", keep);
     Eigen::SparseMatrix<bool> XFN = extractColumns<bool>(X, keep);
     Eigen::SparseMatrix<bool> XFNt = XFN.transpose();
     XFN.makeCompressed();
     XFNt.makeCompressed();
+    Sp XXFN(XFN);
+    Sp XXFNt(XFNt);
 
     findAttributeIndices(words, "NM", keep);
     Eigen::SparseMatrix<bool> XNM = extractColumns<bool>(X, keep);
     Eigen::SparseMatrix<bool> XNMt = XNM.transpose();
     XNM.makeCompressed();
     XNMt.makeCompressed();
+    Sp XXNM(XNM);
+    Sp XXNMt(XNMt);
 
     findAttributeIndices(words, "AS", keep);
     Eigen::SparseMatrix<bool> XAS = extractColumns<bool>(X, keep);
     Eigen::SparseMatrix<bool> XASt = XAS.transpose();
     XAS.makeCompressed();
     XASt.makeCompressed();
+    Sp XXAS(XAS);
+    Sp XXASt(XASt);
 
     findAttributeIndices(words, "CT", keep);
     Eigen::SparseMatrix<bool> XCT = extractColumns<bool>(X, keep);
     Eigen::SparseMatrix<bool> XCTt = XCT.transpose();
     XCT.makeCompressed();
     XCTt.makeCompressed();
+    Sp XXCT(XCT);
+    Sp XXCTt(XCTt);
 
     findAttributeIndices(words, "CL", keep);
     Eigen::SparseMatrix<bool> XCL = extractColumns<bool>(X, keep);
     Eigen::SparseMatrix<bool> XCLt = XCL.transpose();
     XCL.makeCompressed();
     XCLt.makeCompressed();
+    Sp XXCL(XCL);
+    Sp XXCLt(XCLt);
+
+    clock_t thisTime = clock();
+    double thisSeconds = double(thisTime - startTime) / CLOCKS_PER_SEC;
+    printf("elapsed time: %f seconds (building data structures)\n", thisSeconds);
 
     std::vector<bool> step(X.rows(), true);
 
@@ -391,72 +539,77 @@ int main(int argc, char* argv[]) {
         if (!step[index])
             continue;
 
+        step[index] = 0;
+
         lump_index_1.clear();
         lump_index_2.clear();
         lump_patno_2.clear();
         lump.clear();
         lump_initial.clear();
 
-        colFN = find(XFNt, index);
-        colLN = find(XLNt, index);
-        colNM = find(XNMt, index);
-        colAS = find(XASt, index);
-        colCT = find(XCTt, index);
-        colCL = find(XCLt, index);
+        colFN = find(XXFNt, index);
+        colLN = find(XXLNt, index);
+        colNM = find(XXNMt, index);
+        colAS = find(XXASt, index);
+        colCT = find(XXCTt, index);
+        colCL = find(XXCLt, index);
 
-        ColumnView fn = getColumnView(XFN, colFN);
-        ColumnView ln = getColumnView(XLN, colLN);
-        ColumnView nm = getColumnView(XNM, colNM);
-        ColumnView as = getColumnView(XAS, colAS);
-        ColumnView ct = getColumnView(XCT, colCT);
-        ColumnView cl = getColumnView(XCL, colCL);
+        ColumnView fn = getColumnView(XXFN, colFN);
+        ColumnView ln = getColumnView(XXLN, colLN);
+        ColumnView nm = getColumnView(XXNM, colNM);
+        ColumnView as = getColumnView(XXAS, colAS);
+        ColumnView ct = getColumnView(XXCT, colCT);
+        ColumnView cl = getColumnView(XXCL, colCL);
 
-        makeLumpIndex1(step, fn, ln, as, ct, cl, lump_index_1);
         makeLumpIndex2(step, nm, as, ct, cl, lump_index_2);
 
-        // TODO test to make sure this matches previous output
+        lump_patno_2.insert(patno[index]);
 
         for (auto ix: lump_index_2) {
+            step[ix] = 0;
             lump.insert(ix);
             lump_initial.insert(ix);
             lump_patno_2.insert(patno[ix]);
         }
 
+        makeLumpIndex1(step, fn, ln, as, ct, cl, lump_index_1);
+
         for (auto ix: lump_index_1) {
             auto it = lump_patno_2.find(patno[ix]);
             
             if (it == lump_patno_2.end()) {
+                step[ix] = 0;
                 lump.insert(ix);
                 lump_initial.insert(ix);
             }
         }
 
         for (int indexy: lump_initial) {
+
             lump_index_1.clear();
             lump_index_2.clear();
-            lump_patno_2.clear();
 
-            colFN = find(XFNt, indexy);
-            colLN = find(XLNt, indexy);
-            colNM = find(XNMt, indexy);
-            colAS = find(XASt, indexy);
-            colCT = find(XCTt, indexy);
-            colCL = find(XCLt, indexy);
+            colFN = find(XXFNt, indexy);
+            colLN = find(XXLNt, indexy);
+            colNM = find(XXNMt, indexy);
+            colAS = find(XXASt, indexy);
+            colCT = find(XXCTt, indexy);
+            colCL = find(XXCLt, indexy);
 
-            ColumnView fn_ = getColumnView(XFN, colFN);
-            ColumnView ln_ = getColumnView(XLN, colLN);
-            ColumnView nm_ = getColumnView(XNM, colNM);
-            ColumnView as_ = getColumnView(XAS, colAS);
-            ColumnView ct_ = getColumnView(XCT, colCT);
-            ColumnView cl_ = getColumnView(XCL, colCL);
+            ColumnView fn_ = getColumnView(XXFN, colFN);
+            ColumnView ln_ = getColumnView(XXLN, colLN);
+            ColumnView nm_ = getColumnView(XXNM, colNM);
+            ColumnView as_ = getColumnView(XXAS, colAS);
+            ColumnView ct_ = getColumnView(XXCT, colCT);
+            ColumnView cl_ = getColumnView(XXCL, colCL);
 
-            makeLumpIndex1(step, fn_, ln_, as_, ct_, cl_, lump_index_1);
             makeLumpIndex2(step, nm_, as_, ct_, cl_, lump_index_2);
 
             for (int ix: lump_index_2) {
                 lump.insert(ix);
                 lump_patno_2.insert(patno[ix]);
             }
+            makeLumpIndex1(step, fn_, ln_, as_, ct_, cl_, lump_index_1);
 
             for (int ix: lump_index_1) {
                 auto it = lump_patno_2.find(patno[ix]);
@@ -467,31 +620,26 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        if (lump.size() == 0) {
-            step[index] = 0;
-            continue;
-        }
+        // We could be freeing memory of inventorIDs that are reassigned,
+        // but we can get away without it
 
-        for (auto it = lump.rbegin(); it != lump.rend(); ++it) {
+        for (auto it = lump.begin(); it != lump.end(); ++it) {
             step[*it] = 0;
             inventorID[*it] = inventorID[index];
         }
     }
 
-    std::string path = directory + PATHSEP + "_disambiguator_output_cpp.tsv";
-    const char *cpath = path.c_str();
-    // std::ofstream out;
-    // out.open(path);
+    *pathbuffer = '\0';
+    snprintf(pathbuffer, PATHBUFSIZE, "%s%c%s", directory, PATHSEP, "_disambiguator_output_cpp.tsv");
 
-    FILE *out = fopen(cpath, "w");
+    FILE *out = fopen(pathbuffer, "w");
 
-    for (int i = 0; i < key.size(); i++) {
-        // out << key[i] << "\t" << inventorID[i] << "\n";
-        fprintf(out, "%s\t%s\n", key[i].c_str(), inventorID[i].c_str());
+    for (int i = 0; i < keyCount; i++) {
+        fprintf(out, "%s\t%s\n", key[i], inventorID[i]);
     }
     fclose(out);
 
     clock_t endTime = clock();
-    double elpasedSeconds = double(endTime - startTime) / CLOCKS_PER_SEC;
-    std::cout << "elapsed time: " << elpasedSeconds << " seconds" << std::endl;
+    double elapsedSeconds = double(endTime - startTime) / CLOCKS_PER_SEC;
+    printf("elapsed time: %f seconds (total)\n", elapsedSeconds);
 }
